@@ -1,0 +1,62 @@
+name: Build RPM
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    strategy:
+      matrix:
+        fedora: ['39', '40', '41']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          dnf install -y rpm-build curl git
+
+      - name: Build RPM
+        run: make build
+
+      - name: Lint spec
+        continue-on-error: true
+        run: |
+          dnf install -y rpmlint
+          make lint
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tildr-rpm-fedora-${{ matrix.fedora }}
+          path: rpmbuild/RPMS/*.rpm
+          retention-days: 30
+
+  srpm:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          dnf install -y rpm-build curl git
+
+      - name: Build SRPM
+        run: make srpm
+
+      - name: Upload SRPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tildr-srpm
+          path: rpmbuild/SRPMS/*.rpm
+          retention-days: 30
