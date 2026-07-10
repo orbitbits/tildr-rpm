@@ -1,0 +1,15 @@
+# rpmlint configuration for tildr RPM package
+
+[DEFAULT]
+# Use Fedora packaging guidelines
+filters = [
+    # Allow no-signature (binary is verified via GitHub releases)
+    "no-signature",
+    # Allow no-documentation for non-critical files
+    "no-documentation",
+    # Allow no-description
+    "no-description",
+]
+
+# Severity levels to report
+severity = ["error", "warning"]
