@@ -74,5 +74,5 @@ install -Dm644 %{SOURCE8} %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/kio/servicemenus/%{app_name}.desktop
 
 %changelog
-* Thu Jul 10 2025 William Canin <hello.williamcanin@gmail.com> - 0.1.0-1
+* Thu Jul 10 2026 William Canin <hello.williamcanin@gmail.com> - 0.1.0-1
 - Initial RPM package
