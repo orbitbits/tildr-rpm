@@ -7,12 +7,37 @@
 
 <h2 align="center">Declarative CLI for managing your Linux HOME directory.</h2>
 
-## Maintainer workflow (Fedora / RPM)
+## Installation (Fedora / RPM)
+
+### Via Repository (Recommended)
+
+```sh
+# Import GPG key
+sudo rpm --import https://orbitbits.github.io/tildr-rpm/RPM-GPG-KEY-tildr
+
+# Add repository
+sudo dnf config-manager addrepo --from-repofile=https://orbitbits.github.io/tildr-rpm/tildr.repo
+
+# Install
+sudo dnf install tildr
+```
+
+### Via Direct RPM Download
+
+Download the `.rpm` file from [releases](https://github.com/orbitbits/tildr/releases) and install:
+
+```sh
+sudo dnf install ./tildr-*.rpm
+```
+
+---
+
+## Maintainer workflow
 
 ### Prerequisites
 
 ```sh
-sudo dnf install rpm-build curl git
+sudo dnf install rpm-build createrepo-c curl git gnupg
 ```
 
 ### Build package
@@ -47,6 +72,14 @@ make lint
 make version
 ```
 
+### Generate local repo (test)
+
+```sh
+make publish-repo
+```
+
+This creates a local repo structure in `repo/` for testing.
+
 ### Clean all build files
 
 ```sh
@@ -55,37 +88,30 @@ make clean
 
 ---
 
-## Updating package when a new GitHub tag is released
+## Publishing a release
 
-Example: new version `0.2.0`
+1. Update version in `tools/main.sh` and `tildr.spec`
+2. Build and test: `make build && make install`
+3. Commit and create a GitHub release with the RPM attached
+4. The `publish-repo.yml` workflow automatically:
+   - Downloads the RPM from the release
+   - Signs it with GPG
+   - Generates repository metadata
+   - Deploys to GitHub Pages
 
-1. Update version in `tools/main.sh`:
+---
 
+## GitHub Secrets (for maintainers)
+
+| Secret | Description |
+|--------|-------------|
+| `GPG_PRIVATE_KEY` | GPG private key (ASCII-armored) |
+| `GPG_PASSPHRASE` | GPG key passphrase |
+
+Export your key:
 ```sh
-# edit tools/main.sh
-PKGVER=0.2.0
+gpg --export -a 'Your Key Name'
 ```
-
-2. Update version in `tildr.spec`:
-
-```sh
-# edit tildr.spec
-Version:        0.2.0
-```
-
-3. Rebuild:
-
-```sh
-make build
-```
-
-4. Commit and push:
-
-```sh
-git add . && git commit -m "bump to 0.2.0" && git push
-```
-
-Done.
 
 ---
 
@@ -102,8 +128,11 @@ make push-lease    # push --force-with-lease to all remotes
 
 * `tildr.spec` — RPM build recipe (Fedora / RHEL / CentOS)
 * `tools/main.sh` — Build script with download, setup, and packaging logic
+* `tools/publish-repo.sh` — Local repo generation script
 * `rpmlint.toml` — rpmlint configuration for spec validation
 * `.github/workflows/build-rpm.yml` — GitHub Actions CI/CD workflow
+* `.github/workflows/publish-repo.yml` — RPM repo publication workflow
+* `repo/tildr.repo` — DNF repository configuration file
 
 ---
 
@@ -117,7 +146,7 @@ make push-lease    # push --force-with-lease to all remotes
 
 ## Supported distros
 
-* Fedora
+* Fedora 39, 40, 41
 * CentOS Stream
 * Rocky Linux
 * AlmaLinux
