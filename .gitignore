@@ -1,0 +1,15 @@
+# Build directories
+tmp/
+rpmbuild/
+.bundle-cache/
+.ruby-lsp/
+
+# Editor files
+*.swp
+*.swo
+*~
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
