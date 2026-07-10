@@ -12,6 +12,7 @@ BUILD_DIR="rpmbuild"
 info()    { printf "\033[0;36m-> %s\033[0m\n" "$1"; }
 error()   { printf "\033[0;31mx %s\033[0m\n" "$1"; }
 success() { printf "\033[0;32m* %s\033[0m\n" "$1"; }
+warn()    { printf "\033[0;33m! %s\033[0m\n" "$1"; }
 
 # --- Checks ---
 [ "$(uname -s)" != "Linux" ] && { error "Linux only"; exit 1; }
@@ -32,35 +33,44 @@ setup_rpm_dirs() {
   mkdir -p "${BUILD_DIR}"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 }
 
+# --- Download with error handling ---
+download() {
+  local url="$1"
+  local dest="$2"
+  local label="$3"
+
+  info "Downloading ${label}..."
+  if ! curl -sLf "${url}" -o "${dest}"; then
+    error "Failed to download ${label}"
+    return 1
+  fi
+}
+
 # --- Download sources ---
 download_sources() {
   local sources_dir="${BUILD_DIR}/SOURCES"
 
-  info "Downloading binary..."
-  curl -sL "${_release_base}/tildr-${PKGVER}-linux-x86_64" \
-    -o "${sources_dir}/tildr-${PKGVER}-linux-x86_64"
+  download "${_release_base}/tildr-${PKGVER}-linux-x86_64" \
+    "${sources_dir}/tildr-${PKGVER}-linux-x86_64" "binary" || return 1
 
-  info "Downloading man pages..."
-  curl -sL "${_man_base}/tildr.1" \
-    -o "${sources_dir}/tildr.1"
-  curl -sL "${_man_base}/tildr-config.1" \
-    -o "${sources_dir}/tildr-config.1"
-  curl -sL "${_man_base}/tildr-commands.1" \
-    -o "${sources_dir}/tildr-commands.1"
-  curl -sL "${_man_base}/tildr-security.1" \
-    -o "${sources_dir}/tildr-security.1"
-  curl -sL "${_man_base}/tildr-plugins.1" \
-    -o "${sources_dir}/tildr-plugins.1"
+  download "${_man_base}/tildr.1" \
+    "${sources_dir}/tildr.1" "tildr.1" || return 1
+  download "${_man_base}/tildr-config.1" \
+    "${sources_dir}/tildr-config.1" "tildr-config.1" || return 1
+  download "${_man_base}/tildr-commands.1" \
+    "${sources_dir}/tildr-commands.1" "tildr-commands.1" || return 1
+  download "${_man_base}/tildr-security.1" \
+    "${sources_dir}/tildr-security.1" "tildr-security.1" || return 1
+  download "${_man_base}/tildr-plugins.1" \
+    "${sources_dir}/tildr-plugins.1" "tildr-plugins.1" || return 1
 
-  info "Downloading plugins..."
-  curl -sL "${_raw_base}/tools/plugins/nautilus/tildr.py" \
-    -o "${sources_dir}/tildr.py"
-  curl -sL "${_raw_base}/tools/plugins/dolphin/tildr.desktop" \
-    -o "${sources_dir}/tildr.desktop"
+  download "${_raw_base}/tools/plugins/nautilus/tildr.py" \
+    "${sources_dir}/tildr.py" "Nautilus plugin" || return 1
+  download "${_raw_base}/tools/plugins/dolphin/tildr.desktop" \
+    "${sources_dir}/tildr.desktop" "Dolphin plugin" || return 1
 
-  info "Downloading LICENSE..."
-  curl -sL "${_raw_base}/LICENSE" \
-    -o "${sources_dir}/LICENSE"
+  download "${_raw_base}/LICENSE" \
+    "${sources_dir}/LICENSE" "LICENSE" || return 1
 }
 
 # --- Copy spec file ---
@@ -81,6 +91,14 @@ build_rpm() {
   expectation $? success "Success! RPM build complete"
 }
 
+# --- Build SRPM ---
+build_srpm() {
+  info "Building source RPM package..."
+  rpmbuild -bs "${BUILD_DIR}/SPECS/tildr.spec" \
+    --define "_topdir $(pwd)/${BUILD_DIR}"
+  expectation $? success "Success! SRPM build complete"
+}
+
 # --- Install RPM ---
 install_rpm() {
   info "Building and installing RPM package..."
@@ -98,6 +116,18 @@ install_rpm() {
     error "RPM file not found"
     exit 1
   fi
+}
+
+# --- Lint spec ---
+lint_spec() {
+  if ! command -v rpmlint >/dev/null 2>&1; then
+    warn "rpmlint not found. Install: dnf install rpmlint"
+    return 1
+  fi
+
+  info "Linting spec file..."
+  rpmlint -c rpmlint.toml "${BUILD_DIR}/SPECS/tildr.spec"
+  expectation $? success "Lint passed"
 }
 
 # --- Clean ---
@@ -127,6 +157,13 @@ case "${1:-}" in
     update_spec_version
     build_rpm
     ;;
+  srpm)
+    setup_rpm_dirs
+    download_sources
+    copy_spec
+    update_spec_version
+    build_srpm
+    ;;
   install)
     setup_rpm_dirs
     download_sources
@@ -134,12 +171,17 @@ case "${1:-}" in
     update_spec_version
     install_rpm
     ;;
+  lint)
+    setup_rpm_dirs
+    copy_spec
+    lint_spec
+    ;;
   clean)
     clean_build
     ;;
   *)
     error "Unknown command: $1"
-    printf "Usage: %s [build|install|clean]\n" "$0"
+    printf "Usage: %s [build|srpm|install|lint|clean]\n" "$0"
     exit 1
     ;;
 esac
