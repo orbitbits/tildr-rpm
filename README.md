@@ -29,6 +29,24 @@ make install
 
 > Note: Always test with `make install` before publishing.
 
+### Build source RPM
+
+```sh
+make srpm
+```
+
+### Lint spec file
+
+```sh
+make lint
+```
+
+### Show current version
+
+```sh
+make version
+```
+
 ### Clean all build files
 
 ```sh
@@ -84,6 +102,8 @@ make push-lease    # push --force-with-lease to all remotes
 
 * `tildr.spec` — RPM build recipe (Fedora / RHEL / CentOS)
 * `tools/main.sh` — Build script with download, setup, and packaging logic
+* `rpmlint.toml` — rpmlint configuration for spec validation
+* `.github/workflows/build-rpm.yml` — GitHub Actions CI/CD workflow
 
 ---
 
