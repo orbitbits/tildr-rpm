@@ -1,0 +1,98 @@
+name: Publish RPM Repository
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v0.1.0)'
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y createrepo-c rpm gnupg
+
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup repo structure
+        run: |
+          for ver in 39 40 41; do
+            mkdir -p "repo/fedora/${ver}/x86_64"
+          done
+
+      - name: Download RPM from release
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          gh release download "$TAG" -p "*.rpm" -D repo/fedora/x86_64/ --skip-existing
+          echo "Downloaded RPMs:"
+          ls -la repo/fedora/x86_64/
+
+      - name: Distribute RPMs to Fedora versions
+        run: |
+          for ver in 39 40 41; do
+            cp repo/fedora/x86_64/*.rpm "repo/fedora/${ver}/x86_64/" 2>/dev/null || true
+          done
+
+      - name: Sign RPMs
+        run: |
+          for rpm in repo/fedora/*/x86_64/*.rpm; do
+            [ -f "$rpm" ] || continue
+            echo "Signing: $rpm"
+            echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
+              --pinentry-mode loopback \
+              --passphrase-fd 0 \
+              --yes --detach-sign --armor "$rpm"
+          done
+
+      - name: Generate repository metadata
+        run: |
+          for ver in 39 40 41; do
+            dir="repo/fedora/${ver}/x86_64"
+            if [ -d "$dir" ] && ls "$dir"/*.rpm &>/dev/null; then
+              echo "Creating repo metadata for Fedora $ver..."
+              createrepo_c "$dir/"
+
+              echo "Signing repomd.xml..."
+              gpg --batch \
+                --pinentry-mode loopback \
+                --passphrase-fd 0 \
+                --yes --detach-sign --armor "${dir}/repodata/repomd.xml"
+            fi
+          done
+
+      - name: Export public key
+        run: |
+          gpg --batch --pinentry-mode loopback \
+            --passphrase-fd 0 \
+            --yes --export -a 'Tildr Signing Key' > repo/RPM-GPG-KEY-tildr
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: repo
+          keep_files: true
+          destination_dir: .
