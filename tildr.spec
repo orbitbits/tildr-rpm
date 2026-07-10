@@ -39,6 +39,9 @@ across multiple machines.
 %build
 cp %{SOURCE0} %{app_name}
 
+%check
+test -x %{app_name}
+
 %install
 mkdir -p %{buildroot}%{_bindir}
 install -Dm755 %{app_name} %{buildroot}%{_bindir}/%{app_name}
@@ -69,3 +72,7 @@ install -Dm644 %{SOURCE8} %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %attr(755,root,root) %{_bindir}/%{app_name}
 %{_datadir}/nautilus-python/extensions/%{app_name}.py
 %{_datadir}/kio/servicemenus/%{app_name}.desktop
+
+%changelog
+* Thu Jul 10 2025 William Canin <hello.williamcanin@gmail.com> - 0.1.0-1
+- Initial RPM package
