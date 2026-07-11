@@ -22,7 +22,10 @@ warn()    { printf "\033[0;33m! %s\033[0m\n" "$1"; }
 command -v git >/dev/null || { error "git is required"; exit 1; }
 command -v rpmbuild >/dev/null || { error "rpmbuild not found. Install: dnf install rpm-build"; exit 1; }
 
-if [ "$(id -u)" -eq 0 ]; then error "Do not run as root or sudo"; exit 1; fi
+if [ "$(id -u)" -eq 0 ] && [ -z "${CI:-}" ]; then
+  error "Do not run as root or sudo"
+  exit 1
+fi
 
 # --- URLs ---
 # NOTE: sources are pinned to the release tag (${TAG}), never to "main".

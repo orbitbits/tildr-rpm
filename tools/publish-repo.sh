@@ -19,7 +19,10 @@ success() { printf "\033[0;32m* %s\033[0m\n" "$1"; }
 command -v createrepo_c >/dev/null || { error "createrepo_c not found. Install: dnf install createrepo_c"; exit 1; }
 command -v gpg >/dev/null || { error "gpg not found"; exit 1; }
 
-if [ "$(id -u)" -eq 0 ]; then error "Do not run as root or sudo"; exit 1; fi
+if [ "$(id -u)" -eq 0 ] && [ -z "${CI:-}" ]; then
+  error "Do not run as root or sudo"
+  exit 1
+fi
 
 # --- Find RPM ---
 find_rpm() {

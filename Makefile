@@ -1,7 +1,7 @@
 # ----- Makefile -----
 #
-BRANCH := $(shell git branch --show-current)
-REMOTES := $(shell git remote)
+BRANCH := $(shell git branch --show-current 2>/dev/null || echo "unknown")
+REMOTES := $(shell git remote 2>/dev/null || echo "")
 VERSION := $(shell grep '^Version:' tildr.spec | awk '{print $$2}')
 .DEFAULT_GOAL := help
 
