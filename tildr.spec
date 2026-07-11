@@ -32,10 +32,14 @@ using symlinks and Git. It provides a simple way to dotfile management
 across multiple machines.
 
 %prep
-%setup -q -c %{name}-%{version} -n %{name}-%{version}
+mkdir -p %{name}-%{version}
+cp %{SOURCE0} %{name}-%{version}/
+cp %{SOURCE1} %{SOURCE2} %{SOURCE3} %{SOURCE4} %{SOURCE5} %{name}-%{version}/
+cp %{SOURCE6} %{SOURCE7} %{SOURCE8} %{name}-%{version}/
 
 %build
 cp %{SOURCE0} %{app_name}
+chmod 755 %{app_name}
 
 %check
 test -x %{app_name}
@@ -72,5 +76,5 @@ install -Dm644 %{SOURCE8} %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/kio/servicemenus/%{app_name}.desktop
 
 %changelog
-* Thu Jul 10 2026 William Canin <hello.williamcanin@gmail.com> - 0.1.0-1
+* Fri Jul 10 2026 William Canin <hello.williamcanin@gmail.com> - 0.1.0-1
 - Initial RPM package

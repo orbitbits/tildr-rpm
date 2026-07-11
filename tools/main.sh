@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Maintainer: William Canin <hello.williamcanin@gmail.com>
-
+set -euo pipefail
 # --- VARIABLES ---
 # PKGVER can be injected by CI (e.g. from a repository_dispatch payload).
 # Falls back to the version pinned in tildr.spec for local/manual builds.
@@ -29,9 +29,9 @@ if [ "$(id -u)" -eq 0 ]; then error "Do not run as root or sudo"; exit 1; fi
 # This guarantees the package always matches exactly what was released,
 # even if the main branch has moved on since then.
 _github_base="https://github.com/${REPO}"
-_raw_base="https://raw.githubusercontent.com/${REPO}/${TAG}"
 _release_base="${_github_base}/releases/download/${TAG}"
-_bundle_name="${PKGNAME}-${PKGVER}-linux-x86_64.tar.gz"
+_tarball_url="https://api.github.com/repos/${REPO}/tarball/${TAG}"
+_binary_name="${PKGNAME}-${PKGVER}-linux-x86_64"
 
 # --- Create rpmbuild structure ---
 setup_rpm_dirs() {
@@ -52,40 +52,43 @@ download() {
 }
 
 # --- Download sources ---
-# The binary and man pages come exclusively from the release tarball
-# (tildr-${PKGVER}-linux-x86_64.tar.gz), never from raw main-branch files.
-# Only the desktop-integration plugins and LICENSE (static, non-compiled
-# files) are fetched from raw githubusercontent — but still pinned to the
-# release tag, not "main".
+# Binary comes from the GitHub release; man pages, plugins and LICENSE
+# are extracted from the auto-generated source tarball for the tag.
 download_sources() {
   local sources_dir="${BUILD_DIR}/SOURCES"
-  local tmp_bundle
-  tmp_bundle=$(mktemp -d)
 
-  download "${_release_base}/${_bundle_name}" \
-    "${tmp_bundle}/${_bundle_name}" "release bundle (${_bundle_name})" || {
-    error "Could not find ${_bundle_name} on the ${TAG} release."
-    error "Make sure the Tildr release workflow publishes a packaged"
-    error "tarball (binary + man pages) for this version before retrying."
-    rm -rf "${tmp_bundle}"
+  download "${_release_base}/${_binary_name}" \
+    "${sources_dir}/${_binary_name}" "release binary (${_binary_name})" || {
+    error "Could not find ${_binary_name} on the ${TAG} release."
+    error "Make sure the Tildr release workflow publishes a linux binary"
+    error "for this version before retrying."
     return 1
   }
 
-  info "Extracting release bundle..."
-  tar -xzf "${tmp_bundle}/${_bundle_name}" -C "${tmp_bundle}" || {
-    error "Failed to extract ${_bundle_name}"
-    rm -rf "${tmp_bundle}"
+  local tmp_tarball
+  tmp_tarball=$(mktemp -d)
+
+  download "${_tarball_url}" \
+    "${tmp_tarball}/source.tar.gz" "source tarball (${TAG})" || {
+    error "Could not download source tarball for ${TAG}."
+    rm -rf "${tmp_tarball}"
     return 1
   }
 
-  local extracted_dir="${tmp_bundle}/${PKGNAME}-${PKGVER}-linux-x86_64"
+  info "Extracting source tarball..."
+  tar -xzf "${tmp_tarball}/source.tar.gz" -C "${tmp_tarball}" || {
+    error "Failed to extract source tarball"
+    rm -rf "${tmp_tarball}"
+    return 1
+  }
 
-  if [ ! -f "${extracted_dir}/bin/${PKGNAME}" ]; then
-    error "Binary not found inside the release bundle (expected bin/${PKGNAME})"
-    rm -rf "${tmp_bundle}"
+  local src_root
+  src_root=$(find "${tmp_tarball}" -mindepth 1 -maxdepth 1 -type d -name "*-${REPO##*/}-*" | head -1)
+  if [ -z "${src_root}" ]; then
+    error "Could not locate extracted source directory inside tarball"
+    rm -rf "${tmp_tarball}"
     return 1
   fi
-  cp "${extracted_dir}/bin/${PKGNAME}" "${sources_dir}/${PKGNAME}-${PKGVER}-linux-x86_64"
 
   local man_files=(
     "tildr.1"
@@ -94,28 +97,41 @@ download_sources() {
     "tildr-security.1"
     "tildr-plugins.1"
   )
-  for dest in "${man_files[@]}"; do
-    local src="${extracted_dir}/man/man1/${dest}.gz"
-    if [ -f "${src}" ]; then
-      gunzip -kc "${src}" > "${sources_dir}/${dest}"
-    elif [ -f "${extracted_dir}/man/man1/${dest}" ]; then
-      cp "${extracted_dir}/man/man1/${dest}" "${sources_dir}/${dest}"
+  for mf in "${man_files[@]}"; do
+    if [ -f "${src_root}/docs/man/dist/${mf}" ]; then
+      cp "${src_root}/docs/man/dist/${mf}" "${sources_dir}/${mf}"
     else
-      error "Man page ${dest} not found inside the release bundle"
-      rm -rf "${tmp_bundle}"
+      error "Man page ${mf} not found in source tarball"
+      rm -rf "${tmp_tarball}"
       return 1
     fi
   done
 
-  rm -rf "${tmp_bundle}"
+  if [ -f "${src_root}/tools/plugins/nautilus/tildr.py" ]; then
+    cp "${src_root}/tools/plugins/nautilus/tildr.py" "${sources_dir}/tildr.py"
+  else
+    error "Nautilus plugin not found in source tarball"
+    rm -rf "${tmp_tarball}"
+    return 1
+  fi
 
-  download "${_raw_base}/tools/plugins/nautilus/tildr.py" \
-    "${sources_dir}/tildr.py" "Nautilus plugin" || return 1
-  download "${_raw_base}/tools/plugins/dolphin/tildr.desktop" \
-    "${sources_dir}/tildr.desktop" "Dolphin plugin" || return 1
+  if [ -f "${src_root}/tools/plugins/dolphin/tildr.desktop" ]; then
+    cp "${src_root}/tools/plugins/dolphin/tildr.desktop" "${sources_dir}/tildr.desktop"
+  else
+    error "Dolphin plugin not found in source tarball"
+    rm -rf "${tmp_tarball}"
+    return 1
+  fi
 
-  download "${_raw_base}/LICENSE" \
-    "${sources_dir}/LICENSE" "LICENSE" || return 1
+  if [ -f "${src_root}/LICENSE" ]; then
+    cp "${src_root}/LICENSE" "${sources_dir}/LICENSE"
+  else
+    error "LICENSE not found in source tarball"
+    rm -rf "${tmp_tarball}"
+    return 1
+  fi
+
+  rm -rf "${tmp_tarball}"
 }
 
 # --- Copy spec file ---
