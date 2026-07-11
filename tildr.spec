@@ -1,6 +1,4 @@
 %global app_name tildr
-%global github_repo https://github.com/orbitbits/tildr
-%global github_branch main
 
 Name:           %{app_name}
 Version:        0.1.0

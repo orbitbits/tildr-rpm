@@ -2,10 +2,12 @@
 # Maintainer: William Canin <hello.williamcanin@gmail.com>
 
 # --- VARIABLES ---
-PKGVER=0.1.0
+# PKGVER can be injected by CI (e.g. from a repository_dispatch payload).
+# Falls back to the version pinned in tildr.spec for local/manual builds.
+PKGVER="${PKGVER:-$(grep '^Version:' tildr.spec | awk '{print $2}')}"
 PKGNAME="tildr"
 REPO="orbitbits/tildr"
-BRANCH="main"
+TAG="v${PKGVER}"
 BUILD_DIR="rpmbuild"
 
 # --- UI ---
@@ -23,10 +25,13 @@ command -v rpmbuild >/dev/null || { error "rpmbuild not found. Install: dnf inst
 if [ "$(id -u)" -eq 0 ]; then error "Do not run as root or sudo"; exit 1; fi
 
 # --- URLs ---
+# NOTE: sources are pinned to the release tag (${TAG}), never to "main".
+# This guarantees the package always matches exactly what was released,
+# even if the main branch has moved on since then.
 _github_base="https://github.com/${REPO}"
-_raw_base="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
-_release_base="${_github_base}/releases/download/v${PKGVER}"
-_man_base="${_raw_base}/docs/man/dist"
+_raw_base="https://raw.githubusercontent.com/${REPO}/${TAG}"
+_release_base="${_github_base}/releases/download/${TAG}"
+_bundle_name="${PKGNAME}-${PKGVER}-linux-x86_64.tar.gz"
 
 # --- Create rpmbuild structure ---
 setup_rpm_dirs() {
@@ -47,22 +52,62 @@ download() {
 }
 
 # --- Download sources ---
+# The binary and man pages come exclusively from the release tarball
+# (tildr-${PKGVER}-linux-x86_64.tar.gz), never from raw main-branch files.
+# Only the desktop-integration plugins and LICENSE (static, non-compiled
+# files) are fetched from raw githubusercontent — but still pinned to the
+# release tag, not "main".
 download_sources() {
   local sources_dir="${BUILD_DIR}/SOURCES"
+  local tmp_bundle
+  tmp_bundle=$(mktemp -d)
 
-  download "${_release_base}/tildr-${PKGVER}-linux-x86_64" \
-    "${sources_dir}/tildr-${PKGVER}-linux-x86_64" "binary" || return 1
+  download "${_release_base}/${_bundle_name}" \
+    "${tmp_bundle}/${_bundle_name}" "release bundle (${_bundle_name})" || {
+    error "Could not find ${_bundle_name} on the ${TAG} release."
+    error "Make sure the Tildr release workflow publishes a packaged"
+    error "tarball (binary + man pages) for this version before retrying."
+    rm -rf "${tmp_bundle}"
+    return 1
+  }
 
-  download "${_man_base}/tildr.1" \
-    "${sources_dir}/tildr.1" "tildr.1" || return 1
-  download "${_man_base}/tildr-config.1" \
-    "${sources_dir}/tildr-config.1" "tildr-config.1" || return 1
-  download "${_man_base}/tildr-commands.1" \
-    "${sources_dir}/tildr-commands.1" "tildr-commands.1" || return 1
-  download "${_man_base}/tildr-security.1" \
-    "${sources_dir}/tildr-security.1" "tildr-security.1" || return 1
-  download "${_man_base}/tildr-plugins.1" \
-    "${sources_dir}/tildr-plugins.1" "tildr-plugins.1" || return 1
+  info "Extracting release bundle..."
+  tar -xzf "${tmp_bundle}/${_bundle_name}" -C "${tmp_bundle}" || {
+    error "Failed to extract ${_bundle_name}"
+    rm -rf "${tmp_bundle}"
+    return 1
+  }
+
+  local extracted_dir="${tmp_bundle}/${PKGNAME}-${PKGVER}-linux-x86_64"
+
+  if [ ! -f "${extracted_dir}/bin/${PKGNAME}" ]; then
+    error "Binary not found inside the release bundle (expected bin/${PKGNAME})"
+    rm -rf "${tmp_bundle}"
+    return 1
+  fi
+  cp "${extracted_dir}/bin/${PKGNAME}" "${sources_dir}/${PKGNAME}-${PKGVER}-linux-x86_64"
+
+  local man_files=(
+    "tildr.1"
+    "tildr-config.1"
+    "tildr-commands.1"
+    "tildr-security.1"
+    "tildr-plugins.1"
+  )
+  for dest in "${man_files[@]}"; do
+    local src="${extracted_dir}/man/man1/${dest}.gz"
+    if [ -f "${src}" ]; then
+      gunzip -kc "${src}" > "${sources_dir}/${dest}"
+    elif [ -f "${extracted_dir}/man/man1/${dest}" ]; then
+      cp "${extracted_dir}/man/man1/${dest}" "${sources_dir}/${dest}"
+    else
+      error "Man page ${dest} not found inside the release bundle"
+      rm -rf "${tmp_bundle}"
+      return 1
+    fi
+  done
+
+  rm -rf "${tmp_bundle}"
 
   download "${_raw_base}/tools/plugins/nautilus/tildr.py" \
     "${sources_dir}/tildr.py" "Nautilus plugin" || return 1

@@ -90,14 +90,56 @@ make clean
 
 ## Publishing a release
 
-1. Update version in `tools/main.sh` and `tildr.spec`
-2. Build and test: `make build && make install`
-3. Commit and create a GitHub release with the RPM attached
-4. The `publish-repo.yml` workflow automatically:
-   - Downloads the RPM from the release
-   - Signs it with GPG
-   - Generates repository metadata
-   - Deploys to GitHub Pages
+Releases here are **automatic**, triggered by the main [`tildr`](https://github.com/orbitbits/tildr)
+repository whenever it cuts a new version. No version needs to be edited by
+hand in this repo — `PKGVER` is injected at build time.
+
+Flow, end to end:
+
+1. `tildr`'s own release workflow finishes and fires a `repository_dispatch`
+   (`tildr-release`) to this repo, with the new tag as payload.
+2. `release-from-tildr.yml` picks it up, and for each of Fedora 39/40/41:
+   - downloads that exact release's packaged tarball (binary + man pages)
+     from `tildr`'s GitHub release — **never** from the `main` branch, so
+     the package always matches exactly what was tagged
+   - builds the RPM (`make build`) and lints it (`make lint`)
+3. Once all three builds succeed, a GitHub Release is created **here**,
+   with tag matching Tildr's (e.g. `v0.1.0`), with all three `.rpm` files attached.
+4. `publish-repo.yml` (unchanged trigger: `release: published`) picks that
+   release up automatically:
+   - downloads the RPMs
+   - signs them with GPG
+   - generates repository metadata
+   - deploys to GitHub Pages
+
+### Manual / re-run
+
+If you need to (re)build a specific version without waiting for a new Tildr
+release, trigger `release-from-tildr.yml` manually from the Actions tab
+(`workflow_dispatch`), passing the tag (e.g. `v0.1.0`).
+
+### Dependency on the `tildr` repo
+
+This only works once `tildr`'s own release workflow:
+
+- publishes a packaged tarball per release, e.g.
+  `tildr-<version>-linux-x86_64.tar.gz`, containing `bin/tildr` and
+  `man/man1/*.1[.gz]` — not just the raw binary
+- sends a `repository_dispatch` (`event_type: tildr-release`,
+  `client_payload: {"tag": "vX.Y.Z"}`) to this repo (and to `tildr-deb`)
+  after publishing that release
+
+Until both exist upstream, `release-from-tildr.yml` will fail clearly at the
+"download release bundle" step, with a message telling you what's missing —
+rather than silently falling back to whatever happens to be on `main`.
+
+### Publishing to official Fedora/EPEL
+
+The flow above only covers **this repo's own releases** (distributed via
+your own GitHub Pages repo). Submitting to the official Fedora/EPEL
+repositories goes through Fedora's own review (Bugzilla) and update process
+(Bodhi), and is intentionally **not** automated here — that step stays
+manual.
 
 ---
 
