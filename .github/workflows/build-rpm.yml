@@ -13,7 +13,7 @@ jobs:
     container: fedora:latest
     strategy:
       matrix:
-        fedora: ['39', '40', '41']
+        fedora: ['42', '43', '44']
 
     steps:
       - name: Checkout
