@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          dnf install -y rpm-build curl git
+          dnf install -y rpm-build curl git make
 
       - name: Build RPM
         run: make build
@@ -57,7 +57,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          dnf install -y rpm-build curl git
+          dnf install -y rpm-build curl git make
 
       - name: Build SRPM
         run: make srpm
