@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: fedora:latest
+    container: fedora:${{ matrix.fedora }}
     strategy:
       matrix:
         fedora: ['42', '43', '44']
@@ -31,6 +31,14 @@ jobs:
         run: |
           dnf install -y rpmlint
           make lint
+
+      - name: Rename RPM with dist tag
+        run: |
+          rpm_dir="rpmbuild/RPMS/x86_64"
+          for rpm in "${rpm_dir}"/*.rpm; do
+            base="${rpm%.rpm}"
+            mv "$rpm" "${base}.fc${{ matrix.fedora }}.rpm"
+          done
 
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4

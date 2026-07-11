@@ -37,46 +37,66 @@ jobs:
             echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Setup repo structure
+      - name: Download RPMs from release
         run: |
-          for ver in 39 40 41; do
+          TAG="${{ steps.tag.outputs.tag }}"
+          mkdir -p tmp-rpms
+          gh release download "$TAG" -p "*.rpm" -D tmp-rpms/ --skip-existing
+          echo "Downloaded RPMs:"
+          ls -la tmp-rpms/
+
+      - name: Distribute RPMs by Fedora version
+        run: |
+          for ver in 42 43 44; do
             mkdir -p "repo/fedora/${ver}/x86_64"
           done
 
-      - name: Download RPM from release
-        run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          gh release download "$TAG" -p "*.rpm" -D repo/fedora/x86_64/ --skip-existing
-          echo "Downloaded RPMs:"
-          ls -la repo/fedora/x86_64/
+          for rpm in tmp-rpms/*.rpm; do
+            [ -f "$rpm" ] || continue
+            name=$(basename "$rpm")
+            matched=false
+            for ver in 42 43 44; do
+              if echo "$name" | grep -qE "\.fc${ver}\."; then
+                cp "$rpm" "repo/fedora/${ver}/x86_64/"
+                echo "  ${name} -> Fedora ${ver}"
+                matched=true
+                break
+              fi
+            done
+            if [ "$matched" = false ]; then
+              echo "WARNING: No Fedora version match for ${name}, skipping"
+            fi
+          done
 
-      - name: Distribute RPMs to Fedora versions
-        run: |
-          for ver in 39 40 41; do
-            cp repo/fedora/x86_64/*.rpm "repo/fedora/${ver}/x86_64/" 2>/dev/null || true
+          echo ""
+          for ver in 42 43 44; do
+            echo "Fedora ${ver}:"
+            ls -la "repo/fedora/${ver}/x86_64/" 2>/dev/null || echo "  (empty)"
           done
 
       - name: Sign RPMs
         run: |
-          for rpm in repo/fedora/*/x86_64/*.rpm; do
-            [ -f "$rpm" ] || continue
-            echo "Signing: $rpm"
-            echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
-              --pinentry-mode loopback \
-              --passphrase-fd 0 \
-              --yes --detach-sign --armor "$rpm"
+          for ver in 42 43 44; do
+            for rpm in repo/fedora/${ver}/x86_64/*.rpm; do
+              [ -f "$rpm" ] || continue
+              echo "Signing: $rpm"
+              echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
+                --pinentry-mode loopback \
+                --passphrase-fd 0 \
+                --yes --detach-sign --armor "$rpm"
+            done
           done
 
       - name: Generate repository metadata
         run: |
-          for ver in 39 40 41; do
+          for ver in 42 43 44; do
             dir="repo/fedora/${ver}/x86_64"
             if [ -d "$dir" ] && ls "$dir"/*.rpm &>/dev/null; then
               echo "Creating repo metadata for Fedora $ver..."
-              createrepo_c "$dir/"
+              createrepo_c --no-database "$dir/"
 
               echo "Signing repomd.xml..."
-              gpg --batch \
+              echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
                 --pinentry-mode loopback \
                 --passphrase-fd 0 \
                 --yes --detach-sign --armor "${dir}/repodata/repomd.xml"
@@ -85,7 +105,8 @@ jobs:
 
       - name: Export public key
         run: |
-          gpg --batch --pinentry-mode loopback \
+          echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
+            --pinentry-mode loopback \
             --passphrase-fd 0 \
             --yes --export -a 'Tildr Signing Key' > repo/RPM-GPG-KEY-tildr
 

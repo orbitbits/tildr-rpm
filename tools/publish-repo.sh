@@ -7,7 +7,7 @@
 # --- VARIABLES ---
 BUILD_DIR="rpmbuild"
 REPO_DIR="repo"
-FEDORA_VERSIONS="39 40 41"
+FEDORA_VERSIONS="42 43 44"
 
 # --- UI ---
 info()    { printf "\033[0;36m-> %s\033[0m\n" "$1"; }
@@ -69,7 +69,7 @@ generate_metadata() {
   for ver in $FEDORA_VERSIONS; do
     local dir="${REPO_DIR}/fedora/${ver}/x86_64"
     if [ -d "$dir" ] && ls "$dir"/*.rpm &>/dev/null; then
-      createrepo_c "$dir/"
+      createrepo_c --no-database "$dir/"
     fi
   done
 }
