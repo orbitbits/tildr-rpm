@@ -4,7 +4,9 @@ set -euo pipefail
 # --- VARIABLES ---
 # PKGVER can be injected by CI (e.g. from a repository_dispatch payload).
 # Falls back to the version pinned in tildr.spec for local/manual builds.
+# Strips leading 'v' if present (e.g. "v0.1.0" → "0.1.0").
 PKGVER="${PKGVER:-$(grep '^Version:' tildr.spec | awk '{print $2}')}"
+PKGVER="${PKGVER#v}"
 PKGNAME="tildr"
 REPO="orbitbits/tildr"
 TAG="v${PKGVER}"

@@ -69,10 +69,7 @@ jobs:
       - name: Build RPM
         env:
           PKGVER: ${{ needs.check.outputs.new_tag }}
-        run: |
-          ver="${PKGVER#v}"
-          sed -i "s|^Version:.*|Version:        ${ver}|" tildr.spec
-          make build
+        run: make build
 
       - name: Lint spec
         continue-on-error: true
