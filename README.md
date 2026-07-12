@@ -13,7 +13,7 @@
 
 ```sh
 # Import GPG key
-sudo rpm --import https://orbitbits.github.io/tildr-rpm/RPM-GPG-KEY-tildr
+sudo rpm --import https://orbitbits.github.io/tildr-rpm/tildr-rpm-pub.gpg
 
 # Add repository
 sudo dnf config-manager addrepo --from-repofile=https://orbitbits.github.io/tildr-rpm/tildr.repo

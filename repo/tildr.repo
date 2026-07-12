@@ -2,6 +2,6 @@
 name=Tildr RPM Repository
 baseurl=https://orbitbits.github.io/tildr-rpm/fedora/$releasever/$basearch/
 gpgcheck=1
-gpgkey=https://orbitbits.github.io/tildr-rpm/RPM-GPG-KEY-tildr
+gpgkey=https://orbitbits.github.io/tildr-rpm/tildr-rpm-pub.gpg
 enabled=1
 repo_gpgcheck=1

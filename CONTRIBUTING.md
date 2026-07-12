@@ -152,17 +152,18 @@ refactor: restructure code
 | `GPG_PRIVATE_KEY` | GPG private key (ASCII-armored) for signing RPMs |
 | `GPG_PASSPHRASE` | Passphrase for the GPG key |
 
-Export your key:
+Export your key (used only for local/manual verification — CI now exports
+by fingerprint automatically, see `publish-repo.yml`):
 
 ```sh
-gpg --export -a 'Your Key Name'
+gpg --export -a "$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')" > tildr-rpm-pub.gpg
 ```
 
 ## RPM repository structure (after publish)
 
 ```
 https://orbitbits.github.io/tildr-rpm/
-├── RPM-GPG-KEY-tildr
+├── tildr-rpm-pub.gpg
 ├── fedora/
 │   ├── 42/x86_64/
 │   │   ├── tildr-0.1.0-1.fc42.x86_64.rpm
