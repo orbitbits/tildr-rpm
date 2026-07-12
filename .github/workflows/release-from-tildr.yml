@@ -195,7 +195,8 @@ jobs:
               [ -f "$rpm" ] || continue
               echo "Signing: $rpm"
               rpmsign --addsign \
-                -D "%__gpg gpg --batch --no-tty --pinentry-mode loopback --passphrase-file /tmp/.gpg-passphrase --local-user ${{ steps.gpg.outputs.fingerprint }}" \
+                -D "%_gpg_name ${{ steps.gpg.outputs.fingerprint }}" \
+                -D "%__gpg gpg --batch --no-tty --pinentry-mode loopback --passphrase-file /tmp/.gpg-passphrase" \
                 "$rpm"
             done
           done
