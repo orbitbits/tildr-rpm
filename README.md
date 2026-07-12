@@ -90,45 +90,21 @@ make clean
 
 ## Publishing a release
 
-Releases here are **automatic**, triggered by the main [`tildr`](https://github.com/orbitbits/tildr)
-repository whenever it cuts a new version. No version needs to be edited by
-hand in this repo — `PKGVER` is injected at build time.
+Releases are **fully automatic**. Every Saturday at 00:00 UTC a cron job
+checks [orbitbits/tildr](https://github.com/orbitbits/tildr) for new
+releases. When a new tag is detected, the workflow automatically:
 
-Flow, end to end:
+1. Builds RPMs for Fedora 42, 43, 44
+2. Creates a GitHub Release with the RPMs attached
+3. Publishes the RPM repository to GitHub Pages
 
-1. `tildr`'s own release workflow finishes and fires a `repository_dispatch`
-   (`tildr-release`) to this repo, with the new tag as payload.
-2. `release-from-tildr.yml` picks it up, and for each of Fedora 42/43/44:
-   - downloads that exact release's binary and man pages
-     from `tildr`'s GitHub release — **never** from the `main` branch
-   - builds the RPM (`make build`) and lints it (`make lint`)
-3. Once all three builds succeed, a GitHub Release is created **here**,
-   with tag matching Tildr's (e.g. `v0.1.0`), with all three `.rpm` files attached.
-4. `publish-repo.yml` picks that release up automatically:
-   - downloads the RPMs
-   - signs them with GPG
-   - generates repository metadata
-   - deploys to GitHub Pages
+No manual intervention needed — just release on `tildr` and this repo
+picks it up within a week.
 
-### Manual / re-run
+### Manual trigger
 
-If you need to (re)build a specific version without waiting for a new Tildr
-release, trigger `release-from-tildr.yml` manually from the Actions tab
-(`workflow_dispatch`), passing the tag (e.g. `v0.1.0`).
-
-### Dependency on the `tildr` repo
-
-This only works once `tildr`'s own release workflow:
-
-- publishes a Linux binary per release (e.g.
-  `tildr-<version>-linux-x86_64`)
-- sends a `repository_dispatch` (`event_type: tildr-release`,
-  `client_payload: {"tag": "vX.Y.Z"}`) to this repo (and to `tildr-deb`)
-  after publishing that release
-
-Until both exist upstream, `release-from-tildr.yml` can still be triggered
-manually from the Actions tab (`workflow_dispatch`), passing the tag
-(e.g. `v0.1.0`).
+You can also trigger the workflow manually from the Actions tab
+(`workflow_dispatch`) to build immediately without waiting for the cron.
 
 ### Publishing to official Fedora/EPEL
 
@@ -169,8 +145,9 @@ make push-lease    # push --force-with-lease to all remotes
 * `tools/main.sh` — Build script with download, setup, and packaging logic
 * `tools/publish-repo.sh` — Local repo generation script
 * `rpmlint.toml` — rpmlint configuration for spec validation
-* `.github/workflows/build-rpm.yml` — GitHub Actions CI/CD workflow
-* `.github/workflows/publish-repo.yml` — RPM repo publication workflow
+* `.github/workflows/build-rpm.yml` — CI build workflow (push/PR)
+* `.github/workflows/release-from-tildr.yml` — Auto-release from tildr (weekly cron)
+* `.github/workflows/publish-repo.yml` — RPM repo publication to GitHub Pages
 * `repo/tildr.repo` — DNF repository configuration file
 
 ---

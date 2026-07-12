@@ -1,19 +1,57 @@
 name: Release from Tildr
 
 on:
-  repository_dispatch:
-    types: [tildr-release]
+  schedule:
+    - cron: '0 0 * * 6'   # every Saturday at 00:00 UTC
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tildr release tag to build (e.g. v0.1.0)'
-        required: true
 
 permissions:
   contents: write
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.compare.outputs.new_tag }}
+      should_build: ${{ steps.compare.outputs.should_build }}
+    steps:
+      - name: Get latest tildr release
+        id: tildr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh release view --repo orbitbits/tildr --json tagName -q .tagName 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "No release found on orbitbits/tildr"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Latest tildr release: ${TAG}"
+          echo "new_tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Check if already published here
+        id: compare
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tildr.outputs.new_tag }}"
+          if [ -z "$TAG" ]; then
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if gh release view "$TAG" --repo "${{ github.repository }}" &>/dev/null; then
+            echo "Release ${TAG} already exists here — skipping"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New release detected: ${TAG}"
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "new_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     container: fedora:${{ matrix.fedora }}
     strategy:
@@ -21,17 +59,6 @@ jobs:
         fedora: ['42', '43', '44']
 
     steps:
-      - name: Determine tag
-        id: tag
-        run: |
-          if [ -n "${{ inputs.tag }}" ]; then
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ github.event.client_payload.tag }}" ]; then
-            echo "tag=${{ github.event.client_payload.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No tag provided" && exit 1
-          fi
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -41,7 +68,7 @@ jobs:
 
       - name: Build RPM
         env:
-          PKGVER: ${{ steps.tag.outputs.tag }}
+          PKGVER: ${{ needs.check.outputs.new_tag }}
         run: |
           ver="${PKGVER#v}"
           sed -i "s|^Version:.*|Version:        ${ver}|" tildr.spec
@@ -69,23 +96,12 @@ jobs:
           retention-days: 5
 
   release:
-    needs: build
+    needs: [check, build]
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Determine tag
-        id: tag
-        run: |
-          if [ -n "${{ inputs.tag }}" ]; then
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ github.event.client_payload.tag }}" ]; then
-            echo "tag=${{ github.event.client_payload.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No tag provided" && exit 1
-          fi
 
       - name: Download all RPM artifacts
         uses: actions/download-artifact@v4
@@ -103,14 +119,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
+          TAG="${{ needs.check.outputs.new_tag }}"
           gh release create "$TAG" \
             --title "Release ${TAG}" \
             --generate-notes \
             rpms/*.rpm
 
   publish:
-    needs: release
+    needs: [check, release]
     runs-on: ubuntu-latest
 
     steps:
@@ -126,20 +142,9 @@ jobs:
         run: |
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
 
-      - name: Determine tag
-        id: tag
-        run: |
-          if [ -n "${{ inputs.tag }}" ]; then
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ github.event.client_payload.tag }}" ]; then
-            echo "tag=${{ github.event.client_payload.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No tag provided" && exit 1
-          fi
-
       - name: Download RPMs from release
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
+          TAG="${{ needs.check.outputs.new_tag }}"
           mkdir -p tmp-rpms
           gh release download "$TAG" -p "*.rpm" -D tmp-rpms/ --skip-existing
           echo "Downloaded RPMs:"
