@@ -130,6 +130,12 @@ gpg --export -a 'Your Key Name'
 
 ---
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, build workflow, and how to publish manually.
+
+---
+
 ## Git helpers
 
 ```sh
