@@ -89,17 +89,17 @@ jobs:
 
       - name: Sign RPMs
         run: |
+          echo "${{ secrets.GPG_PASSPHRASE }}" > /tmp/.gpg-passphrase
           for ver in 42 43 44; do
             for rpm in repo/fedora/${ver}/x86_64/*.rpm; do
               [ -f "$rpm" ] || continue
               echo "Signing: $rpm"
-              echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
-                --pinentry-mode loopback \
-                --passphrase-fd 0 \
-                --local-user "${{ steps.gpg.outputs.fingerprint }}" \
-                --yes --detach-sign --armor "$rpm"
+              rpmsign --addsign \
+                -D "%__gpg gpg --batch --no-tty --pinentry-mode loopback --passphrase-file /tmp/.gpg-passphrase --local-user ${{ steps.gpg.outputs.fingerprint }}" \
+                "$rpm"
             done
           done
+          rm -f /tmp/.gpg-passphrase
 
       - name: Generate repository metadata
         run: |
