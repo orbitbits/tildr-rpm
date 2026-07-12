@@ -89,18 +89,40 @@ jobs:
 
       - name: Sign RPMs
         run: |
-          echo "${{ secrets.GPG_PASSPHRASE }}" > /tmp/.gpg-passphrase
+          # gpgcheck=1 (per-package check) validates the signature EMBEDDED
+          # in the RPM header — it does not look at a detached .asc file at
+          # all. That embedding is done by `rpm --addsign`, configured via
+          # ~/.rpmmacros, not by `gpg --detach-sign`. This must run before
+          # "Generate repository metadata", since --addsign rewrites the
+          # .rpm file itself and createrepo_c needs to checksum the final,
+          # already-signed bytes.
+          cat > ~/.rpmmacros <<EOF
+          %_signature gpg
+          %_gpg_name ${{ steps.gpg.outputs.fingerprint }}
+          %_gpg_path $HOME/.gnupg
+          %_gpgbin /usr/bin/gpg
+          %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --pinentry-mode loopback --passphrase-fd 3 --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
+          EOF
+
           for ver in 42 43 44; do
             for rpm in repo/fedora/${ver}/x86_64/*.rpm; do
               [ -f "$rpm" ] || continue
               echo "Signing: $rpm"
-              rpmsign --addsign \
-                -D "%_gpg_name ${{ steps.gpg.outputs.fingerprint }}" \
-                -D "%__gpg gpg --batch --no-tty --pinentry-mode loopback --passphrase-file /tmp/.gpg-passphrase" \
-                "$rpm"
+              rpm --addsign "$rpm" 3< <(echo "${{ secrets.GPG_PASSPHRASE }}")
             done
           done
-          rm -f /tmp/.gpg-passphrase
+
+          echo "Verifying embedded signatures..."
+          for ver in 42 43 44; do
+            for rpm in repo/fedora/${ver}/x86_64/*.rpm; do
+              [ -f "$rpm" ] || continue
+              if ! rpm -K "$rpm" | grep -q "signatures OK"; then
+                echo "::error::$rpm was not signed correctly"
+                rpm -K "$rpm"
+                exit 1
+              fi
+            done
+          done
 
       - name: Generate repository metadata
         run: |

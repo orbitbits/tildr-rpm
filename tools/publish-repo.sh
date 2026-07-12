@@ -59,8 +59,7 @@ sign_rpms() {
     for rpm in ${REPO_DIR}/fedora/${ver}/x86_64/*.rpm; do
       [ -f "$rpm" ] || continue
       rpm --addsign "$rpm" 2>/dev/null || {
-        error "Failed to sign $rpm. Set %_gpg_name in ~/.rpmmacros or use:"
-        error "  rpmsign --addsign -D '%__gpg gpg --batch ...' $rpm"
+        error "Failed to sign $rpm. Check your GPG configuration."
         return 1
       }
     done

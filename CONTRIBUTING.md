@@ -162,7 +162,7 @@ gpg --export -a "$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/{print
 ## RPM repository structure (after publish)
 
 ```
-https://orbitbits.com/tildr-rpm/
+https://orbitbits.com/tildr-rpm/  (also reachable at https://orbitbits.github.io/tildr-rpm/)
 ├── tildr-rpm-pub.gpg
 ├── fedora/
 │   ├── 42/x86_64/
