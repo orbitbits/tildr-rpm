@@ -104,7 +104,7 @@ jobs:
           cat > ~/.rpmmacros <<EOF
           %_signature gpg
           %_gpg_name ${{ steps.gpg.outputs.fingerprint }}
-          %_gpg_path /root/.gnupg
+          %_gpg_path ${HOME}/.gnupg
           %_gpgbin /usr/bin/gpg
           %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --no-tty --pinentry-mode loopback --passphrase-file /tmp/.gpg-passphrase --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
           EOF
