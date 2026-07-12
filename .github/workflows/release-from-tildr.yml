@@ -224,7 +224,7 @@ jobs:
           for ver in 42 43 44; do
             for rpm in repo/fedora/${ver}/x86_64/*.rpm; do
               [ -f "$rpm" ] || continue
-              if ! rpm -K "$rpm" | grep -q "digests SIGNATURES OK"; then
+              if ! rpm -K "$rpm" | grep -q "digests signatures OK"; then
                 echo "::error::$rpm signature verification failed"
                 rpm -K "$rpm"
                 exit 1
