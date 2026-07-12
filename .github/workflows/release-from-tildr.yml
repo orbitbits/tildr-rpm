@@ -1,0 +1,219 @@
+name: Release from Tildr
+
+on:
+  repository_dispatch:
+    types: [tildr-release]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tildr release tag to build (e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: fedora:${{ matrix.fedora }}
+    strategy:
+      matrix:
+        fedora: ['42', '43', '44']
+
+    steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.client_payload.tag }}" ]; then
+            echo "tag=${{ github.event.client_payload.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "No tag provided" && exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          dnf install -y rpm-build curl git make
+
+      - name: Build RPM
+        env:
+          PKGVER: ${{ steps.tag.outputs.tag }}
+        run: |
+          ver="${PKGVER#v}"
+          sed -i "s|^Version:.*|Version:        ${ver}|" tildr.spec
+          make build
+
+      - name: Lint spec
+        continue-on-error: true
+        run: |
+          dnf install -y rpmlint
+          make lint
+
+      - name: Collect RPMs
+        run: |
+          mkdir -p rpms
+          for rpm in rpmbuild/RPMS/x86_64/*.rpm; do
+            base="${rpm%.rpm}"
+            mv "$rpm" "rpms/$(basename "${base}.fc${{ matrix.fedora }}.rpm")"
+          done
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-fedora-${{ matrix.fedora }}
+          path: rpms/*.rpm
+          retention-days: 5
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.client_payload.tag }}" ]; then
+            echo "tag=${{ github.event.client_payload.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "No tag provided" && exit 1
+          fi
+
+      - name: Download all RPM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: rpms/
+          pattern: rpm-fedora-*
+          merge-multiple: true
+
+      - name: List RPMs
+        run: |
+          echo "Downloaded RPMs:"
+          find rpms/ -name "*.rpm" -exec ls -lh {} \;
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          gh release create "$TAG" \
+            --title "Release ${TAG}" \
+            --generate-notes \
+            rpms/*.rpm
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y createrepo-c rpm gnupg
+
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.client_payload.tag }}" ]; then
+            echo "tag=${{ github.event.client_payload.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "No tag provided" && exit 1
+          fi
+
+      - name: Download RPMs from release
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          mkdir -p tmp-rpms
+          gh release download "$TAG" -p "*.rpm" -D tmp-rpms/ --skip-existing
+          echo "Downloaded RPMs:"
+          ls -la tmp-rpms/
+
+      - name: Distribute RPMs by Fedora version
+        run: |
+          for ver in 42 43 44; do
+            mkdir -p "repo/fedora/${ver}/x86_64"
+          done
+
+          for rpm in tmp-rpms/*.rpm; do
+            [ -f "$rpm" ] || continue
+            name=$(basename "$rpm")
+            matched=false
+            for ver in 42 43 44; do
+              if echo "$name" | grep -qE "\.fc${ver}\."; then
+                cp "$rpm" "repo/fedora/${ver}/x86_64/"
+                echo "  ${name} -> Fedora ${ver}"
+                matched=true
+                break
+              fi
+            done
+            if [ "$matched" = false ]; then
+              echo "WARNING: No Fedora version match for ${name}, skipping"
+            fi
+          done
+
+          echo ""
+          for ver in 42 43 44; do
+            echo "Fedora ${ver}:"
+            ls -la "repo/fedora/${ver}/x86_64/" 2>/dev/null || echo "  (empty)"
+          done
+
+      - name: Sign RPMs
+        run: |
+          for ver in 42 43 44; do
+            for rpm in repo/fedora/${ver}/x86_64/*.rpm; do
+              [ -f "$rpm" ] || continue
+              echo "Signing: $rpm"
+              echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
+                --pinentry-mode loopback \
+                --passphrase-fd 0 \
+                --yes --detach-sign --armor "$rpm"
+            done
+          done
+
+      - name: Generate repository metadata
+        run: |
+          for ver in 42 43 44; do
+            dir="repo/fedora/${ver}/x86_64"
+            if [ -d "$dir" ] && ls "$dir"/*.rpm &>/dev/null; then
+              echo "Creating repo metadata for Fedora $ver..."
+              createrepo_c --no-database "$dir/"
+
+              echo "Signing repomd.xml..."
+              echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
+                --pinentry-mode loopback \
+                --passphrase-fd 0 \
+                --yes --detach-sign --armor "${dir}/repodata/repomd.xml"
+            fi
+          done
+
+      - name: Export public key
+        run: |
+          echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
+            --pinentry-mode loopback \
+            --passphrase-fd 0 \
+            --yes --export -a 'Tildr Signing Key' > repo/RPM-GPG-KEY-tildr
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: repo
+          keep_files: true
+          destination_dir: .

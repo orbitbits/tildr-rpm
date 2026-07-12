@@ -98,15 +98,13 @@ Flow, end to end:
 
 1. `tildr`'s own release workflow finishes and fires a `repository_dispatch`
    (`tildr-release`) to this repo, with the new tag as payload.
-2. `release-from-tildr.yml` picks it up, and for each of Fedora 39/40/41:
-   - downloads that exact release's packaged tarball (binary + man pages)
-     from `tildr`'s GitHub release — **never** from the `main` branch, so
-     the package always matches exactly what was tagged
+2. `release-from-tildr.yml` picks it up, and for each of Fedora 42/43/44:
+   - downloads that exact release's binary and man pages
+     from `tildr`'s GitHub release — **never** from the `main` branch
    - builds the RPM (`make build`) and lints it (`make lint`)
 3. Once all three builds succeed, a GitHub Release is created **here**,
    with tag matching Tildr's (e.g. `v0.1.0`), with all three `.rpm` files attached.
-4. `publish-repo.yml` (unchanged trigger: `release: published`) picks that
-   release up automatically:
+4. `publish-repo.yml` picks that release up automatically:
    - downloads the RPMs
    - signs them with GPG
    - generates repository metadata
@@ -122,16 +120,15 @@ release, trigger `release-from-tildr.yml` manually from the Actions tab
 
 This only works once `tildr`'s own release workflow:
 
-- publishes a packaged tarball per release, e.g.
-  `tildr-<version>-linux-x86_64.tar.gz`, containing `bin/tildr` and
-  `man/man1/*.1[.gz]` — not just the raw binary
+- publishes a Linux binary per release (e.g.
+  `tildr-<version>-linux-x86_64`)
 - sends a `repository_dispatch` (`event_type: tildr-release`,
   `client_payload: {"tag": "vX.Y.Z"}`) to this repo (and to `tildr-deb`)
   after publishing that release
 
-Until both exist upstream, `release-from-tildr.yml` will fail clearly at the
-"download release bundle" step, with a message telling you what's missing —
-rather than silently falling back to whatever happens to be on `main`.
+Until both exist upstream, `release-from-tildr.yml` can still be triggered
+manually from the Actions tab (`workflow_dispatch`), passing the tag
+(e.g. `v0.1.0`).
 
 ### Publishing to official Fedora/EPEL
 
@@ -188,7 +185,7 @@ make push-lease    # push --force-with-lease to all remotes
 
 ## Supported distros
 
-* Fedora 39, 40, 41
+* Fedora 42, 43, 44
 * CentOS Stream
 * Rocky Linux
 * AlmaLinux
