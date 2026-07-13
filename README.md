@@ -24,7 +24,7 @@ sudo dnf install tildr
 
 ### Via Direct RPM Download
 
-Download the `.rpm` file from [releases](https://github.com/orbitbits/tildr/releases) and install:
+Download the `.rpm` file from [releases](https://github.com/orbitbits/tildr-rpm/releases) and install:
 
 ```sh
 sudo dnf install ./tildr-*.rpm
