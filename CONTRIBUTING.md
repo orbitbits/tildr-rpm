@@ -22,7 +22,8 @@ tildr-rpm/
 ├── Makefile                    # Build commands
 ├── tools/
 │   ├── main.sh                 # Build script (download, package, lint)
-│   └── publish-repo.sh         # Local repo generation for testing
+│   ├── publish-repo.sh         # Local repo generation for testing
+│   └── generate-index.sh       # Generate index.html for GitHub Pages
 ├── repo/
 │   └── tildr.repo              # DNF repo config template
 ├── rpmlint.toml                # rpmlint config
@@ -93,6 +94,32 @@ sudo dnf install tildr
 make clean
 ```
 
+## Publishing a release
+
+Releases are **fully automatic**. Every Saturday at 00:00 UTC a cron job
+checks [orbitbits/tildr](https://github.com/orbitbits/tildr) for new
+releases. When a new tag is detected, the workflow automatically:
+
+1. Builds RPMs for Fedora 42, 43, 44
+2. Creates a GitHub Release with the RPMs attached
+3. Publishes the RPM repository to GitHub Pages
+
+No manual intervention needed — just release on `tildr` and this repo
+picks it up within a week.
+
+### Manual trigger
+
+You can also trigger the workflow manually from the Actions tab
+(`workflow_dispatch`) to build immediately without waiting for the cron.
+
+### Publishing to official Fedora/EPEL
+
+The flow above only covers **this repo's own releases** (distributed via
+your own GitHub Pages repo). Submitting to the official Fedora/EPEL
+repositories goes through Fedora's own review (Bugzilla) and update process
+(Bodhi), and is intentionally **not** automated here — that step stays
+manual.
+
 ## Publishing an RPM manually
 
 If you need to publish a release **without waiting for the Saturday cron**:
@@ -159,13 +186,29 @@ by fingerprint automatically, see `publish-repo.yml`):
 gpg --export -a "$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')" > tildr-rpm-pub.gpg
 ```
 
+## Git helpers
+
+```sh
+make push          # push to all remotes
+make push-lease    # push --force-with-lease to all remotes
+```
+
+## Notes
+
+* This repository does **not** contain the source code.
+* The spec file downloads the source directly from GitHub releases.
+* Always test with `make install` before publishing.
+
 ## RPM repository structure (after publish)
 
 ```
-https://orbitbits.com/tildr-rpm/  (also reachable at https://orbitbits.github.io/tildr-rpm/)
+https://rpm.orbitbits.com/
 ├── tildr-rpm-pub.gpg
+├── tildr.repo
+├── index.html
 ├── fedora/
 │   ├── 42/x86_64/
+│   │   ├── index.html
 │   │   ├── tildr-0.1.0-1.fc42.x86_64.rpm
 │   │   ├── tildr-0.1.0-1.fc42.x86_64.rpm.asc
 │   │   └── repodata/

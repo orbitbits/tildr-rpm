@@ -5,7 +5,7 @@ REMOTES := $(shell git remote 2>/dev/null || echo "")
 VERSION := $(shell grep '^Version:' tildr.spec | awk '{print $$2}')
 .DEFAULT_GOAL := help
 
-.PHONY: help build install srpm lint version publish-repo clean push push-lease
+.PHONY: help build install srpm lint version publish-repo generate-index clean push push-lease
 
 help:
 	@echo "Options:"
@@ -16,6 +16,7 @@ help:
 	@echo "  make lint         -> Validate spec with rpmlint"
 	@echo "  make version      -> Show current package version"
 	@echo "  make publish-repo -> Generate local RPM repo for testing"
+	@echo "  make generate-index -> Generate index.html files for GitHub Pages"
 	@echo "  make clean        -> Clean all build files"
 	@echo
 	@echo "  make push         -> Performs a remote push to all branches"
@@ -39,6 +40,9 @@ version:
 
 publish-repo:
 	@bash tools/publish-repo.sh generate
+
+generate-index:
+	@bash tools/generate-index.sh repo
 
 clean:
 	@bash tools/main.sh clean
