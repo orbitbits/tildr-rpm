@@ -1,7 +1,7 @@
 %global app_name tildr
 
 Name:           %{app_name}
-Version:        0.3.0
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        Manage HOME files and directories with symlinks and Git
 License:        LicenseRef-ElasticLicense2.0
@@ -76,6 +76,9 @@ install -Dm644 %{SOURCE8} %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/kio/servicemenus/%{app_name}.desktop
 
 %changelog
+* Wed Jul 22 2026 William Canin <hello.williamcanin@gmail.com> - 0.3.1-1
+- Update to version 0.3.1
+
 * Tue Jul 21 2026 William Canin <hello.williamcanin@gmail.com> - 0.3.0-1
 - Update to version 0.3.0
 
