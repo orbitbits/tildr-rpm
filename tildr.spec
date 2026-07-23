@@ -1,10 +1,10 @@
 %global app_name tildr
 
 Name:           %{app_name}
-Version:        0.3.1
+Version:        0.3.2
 Release:        1%{?dist}
 Summary:        Manage HOME files and directories with symlinks and Git
-License:        LicenseRef-ElasticLicense2.0
+License:        GNU AFFERO GENERAL PUBLIC LICENSE
 URL:            https://orbitbits.com/tildr
 Source0:        %{app_name}-%{version}-linux-x86_64
 Source1:        %{app_name}.1
@@ -76,6 +76,10 @@ install -Dm644 %{SOURCE8} %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/kio/servicemenus/%{app_name}.desktop
 
 %changelog
+* Thu Jul 23 2026 William Canin <hello.williamcanin@gmail.com> - 0.3.2-1
+- Update to version 0.3.2
+- Change license to GNU AGPL-3.0
+
 * Wed Jul 22 2026 William Canin <hello.williamcanin@gmail.com> - 0.3.1-1
 - Update to version 0.3.1
 
