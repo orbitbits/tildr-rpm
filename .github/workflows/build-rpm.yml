@@ -44,7 +44,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tildr-rpm-fedora-${{ matrix.fedora }}
-          path: rpmbuild/RPMS/*.rpm
+          path: rpmbuild/RPMS/**/*.rpm
+          if-no-files-found: error
           retention-days: 30
 
   publish-main:
@@ -66,6 +67,10 @@ jobs:
           path: rpms/
           pattern: tildr-rpm-fedora-*
           merge-multiple: true
+
+      - name: List downloaded RPMs
+        run: |
+          find rpms -name '*.rpm' -type f -exec ls -lh {} \;
 
       - name: Determine package version
         id: package
