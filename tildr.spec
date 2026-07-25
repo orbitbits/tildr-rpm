@@ -1,7 +1,7 @@
 %global app_name tildr
 
 Name:           %{app_name}
-Version:        0.3.2
+Version:        0.3.3
 Release:        1%{?dist}
 Summary:        Manage HOME files and directories with symlinks and Git
 License:        GNU AFFERO GENERAL PUBLIC LICENSE
@@ -76,6 +76,9 @@ install -Dm644 %{SOURCE8} %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %{_datadir}/kio/servicemenus/%{app_name}.desktop
 
 %changelog
+* Fri Jul 24 2026 William Canin <hello.williamcanin@gmail.com> - 0.3.3-1
+- Update to version 0.3.3
+
 * Thu Jul 23 2026 William Canin <hello.williamcanin@gmail.com> - 0.3.2-1
 - Update to version 0.3.2
 - Change license to GNU AGPL-3.0
