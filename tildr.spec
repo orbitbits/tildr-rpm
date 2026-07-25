@@ -3,7 +3,7 @@
 Name:           %{app_name}
 Version:        0.3.3
 Release:        1%{?dist}
-Summary:        Manage HOME files and directories with symlinks and Git
+Summary:        Manage and reproduce your HOME directory declaratively
 License:        GNU AFFERO GENERAL PUBLIC LICENSE
 URL:            https://orbitbits.com/tildr
 Source0:        %{app_name}-%{version}-linux-x86_64
