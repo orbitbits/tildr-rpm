@@ -13,10 +13,10 @@
 
 ```sh
 # Import GPG key
-sudo rpm --import https://rpm.orbitbits.com/tildr-rpm-pub.gpg
+sudo rpm --import https://packages.orbitbits.com/keys/orbitbits.gpg
 
 # Add repository
-sudo dnf config-manager addrepo --from-repofile=https://rpm.orbitbits.com/tildr.repo
+sudo dnf config-manager addrepo --from-repofile=https://packages.orbitbits.com/rpm/orbitbits.repo
 
 # Install
 sudo dnf install tildr

@@ -47,6 +47,71 @@ jobs:
           path: rpmbuild/RPMS/*.rpm
           retention-days: 30
 
+  publish-main:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
+      - name: Download RPM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: rpms/
+          pattern: tildr-rpm-fedora-*
+          merge-multiple: true
+
+      - name: Determine package version
+        id: package
+        run: |
+          rpm_file="$(find rpms -name '*.rpm' -type f | head -1)"
+          if [ -z "$rpm_file" ]; then
+            echo "::error::No RPM artifact found"
+            exit 1
+          fi
+
+          version="$(rpm -qp --queryformat '%{VERSION}' "$rpm_file")"
+          tag="v${version}"
+
+          echo "rpm_file=$rpm_file" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Publish RPMs to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.package.outputs.tag }}"
+
+          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$tag" rpms/*.rpm \
+              --repo "${{ github.repository }}" \
+              --clobber
+          else
+            gh release create "$tag" rpms/*.rpm \
+              --repo "${{ github.repository }}" \
+              --target "${{ github.sha }}" \
+              --title "Release ${tag}" \
+              --generate-notes
+          fi
+
+      - name: Trigger packaging publish
+        env:
+          ORBITBITS_PACKAGING_TOKEN: ${{ secrets.ORBITBITS_PACKAGING_TOKEN }}
+        run: |
+          export GH_TOKEN="$(printf '%s' "$ORBITBITS_PACKAGING_TOKEN" | tr -d '\r\n')"
+          gh api repos/orbitbits/packaging/dispatches \
+            -f event_type=publish-package \
+            -f client_payload[package_type]=rpm \
+            -f client_payload[source_repository]="${{ github.repository }}" \
+            -f client_payload[tag]="${{ steps.package.outputs.tag }}"
+
   srpm:
     runs-on: ubuntu-latest
     container: fedora:latest

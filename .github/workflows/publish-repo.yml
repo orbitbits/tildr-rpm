@@ -1,4 +1,4 @@
-name: Publish RPM Repository
+name: Publish RPM to Packaging
 
 on:
   release:
@@ -13,33 +13,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y createrepo-c rpm gnupg
-
-      - name: Import GPG key
-        id: gpg
-        run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
-          # Capture the fingerprint of the key we just imported instead of
-          # matching it later by a hardcoded user-id string. Filtering by
-          # name later is fragile: if the string doesn't match the key's
-          # actual User ID, `gpg --export` finds nothing, exits 0, and
-          # silently produces an empty file — which is exactly the bug
-          # that made RPM-GPG-KEY-tildr ship blank.
-          FPR=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
-          if [ -z "$FPR" ]; then
-            echo "::error::No GPG secret key found after import"
-            exit 1
-          fi
-          echo "fingerprint=$FPR" >> "$GITHUB_OUTPUT"
 
       - name: Determine tag
         id: tag
@@ -50,121 +28,13 @@ jobs:
             echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Download RPMs from release
+      - name: Trigger packaging publish
+        env:
+          ORBITBITS_PACKAGING_TOKEN: ${{ secrets.ORBITBITS_PACKAGING_TOKEN }}
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          mkdir -p tmp-rpms
-          gh release download "$TAG" -p "*.rpm" -D tmp-rpms/ --skip-existing
-          echo "Downloaded RPMs:"
-          ls -la tmp-rpms/
-
-      - name: Distribute RPMs by Fedora version
-        run: |
-          for ver in 42 43 44; do
-            mkdir -p "repo/fedora/${ver}/x86_64"
-          done
-
-          for rpm in tmp-rpms/*.rpm; do
-            [ -f "$rpm" ] || continue
-            name=$(basename "$rpm")
-            matched=false
-            for ver in 42 43 44; do
-              if echo "$name" | grep -qE "\.fc${ver}\."; then
-                cp "$rpm" "repo/fedora/${ver}/x86_64/"
-                echo "  ${name} -> Fedora ${ver}"
-                matched=true
-                break
-              fi
-            done
-            if [ "$matched" = false ]; then
-              echo "WARNING: No Fedora version match for ${name}, skipping"
-            fi
-          done
-
-          echo ""
-          for ver in 42 43 44; do
-            echo "Fedora ${ver}:"
-            ls -la "repo/fedora/${ver}/x86_64/" 2>/dev/null || echo "  (empty)"
-          done
-
-      - name: Sign RPMs
-        run: |
-          # 1. Import public key into RPM database (file, not pipe — pipe
-          #    can fail silently on some rpm versions).
-          gpg --batch --yes --export -a "${{ steps.gpg.outputs.fingerprint }}" > /tmp/tildr-pub.gpg
-          rpm --import /tmp/tildr-pub.gpg
-          rm -f /tmp/tildr-pub.gpg
-
-          # 2. Write passphrase to a real file so gpg --passphrase-file
-          #    can read it reliably on every invocation (process-substitution
-          #    pipes are one-shot and break when multiple RPMs are signed).
-          echo "${{ secrets.GPG_PASSPHRASE }}" > /tmp/.gpg-passphrase
-
-          # 3. Configure rpmmacros for embedded signatures.
-          cat > ~/.rpmmacros <<EOF
-          %_signature gpg
-          %_gpg_name ${{ steps.gpg.outputs.fingerprint }}
-          %_gpg_path ${HOME}/.gnupg
-          %_gpgbin /usr/bin/gpg
-          %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --no-tty --pinentry-mode loopback --passphrase-file /tmp/.gpg-passphrase --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
-          EOF
-
-          # 4. Sign each RPM (embedded header signature).
-          for ver in 42 43 44; do
-            for rpm in repo/fedora/${ver}/x86_64/*.rpm; do
-              [ -f "$rpm" ] || continue
-              echo "Signing: $rpm"
-              rpm --addsign "$rpm"
-            done
-          done
-          rm -f /tmp/.gpg-passphrase
-
-          # 5. Verify — checks against the RPM database (populated by rpm --import above).
-          echo "Verifying embedded signatures..."
-          for ver in 42 43 44; do
-            for rpm in repo/fedora/${ver}/x86_64/*.rpm; do
-              [ -f "$rpm" ] || continue
-              if ! rpm -K "$rpm" | grep -q "digests signatures OK"; then
-                echo "::error::$rpm signature verification failed"
-                rpm -K "$rpm"
-                exit 1
-              fi
-              echo "  OK: $(basename "$rpm")"
-            done
-          done
-
-      - name: Generate repository metadata
-        run: |
-          for ver in 42 43 44; do
-            dir="repo/fedora/${ver}/x86_64"
-            if [ -d "$dir" ] && ls "$dir"/*.rpm &>/dev/null; then
-              echo "Creating repo metadata for Fedora $ver..."
-              createrepo_c --no-database "$dir/"
-
-              echo "Signing repomd.xml..."
-              echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch \
-                --pinentry-mode loopback \
-                --passphrase-fd 0 \
-                --local-user "${{ steps.gpg.outputs.fingerprint }}" \
-                --yes --detach-sign --armor "${dir}/repodata/repomd.xml"
-            fi
-          done
-
-      - name: Export public key
-        run: |
-          gpg --batch --yes --export -a "${{ steps.gpg.outputs.fingerprint }}" > repo/tildr-rpm-pub.gpg
-          if [ ! -s repo/tildr-rpm-pub.gpg ]; then
-            echo "::error::Exported GPG public key file is empty"
-            exit 1
-          fi
-
-      - name: Generate directory index
-        run: bash tools/generate-index.sh repo
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: repo
-          keep_files: true
-          destination_dir: .
+          export GH_TOKEN="$(printf '%s' "$ORBITBITS_PACKAGING_TOKEN" | tr -d '\r\n')"
+          gh api repos/orbitbits/packaging/dispatches \
+            -f event_type=publish-package \
+            -f client_payload[package_type]=rpm \
+            -f client_payload[source_repository]="${{ github.repository }}" \
+            -f client_payload[tag]="${{ steps.tag.outputs.tag }}"
