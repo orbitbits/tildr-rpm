@@ -142,9 +142,9 @@ refactor: restructure code
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `build-rpm.yml` | push/PR to main | Builds a distro-neutral x86_64 RPM, runs lint, and publishes main pushes to `orbitbits/packaging` |
-| `release-from-tildr.yml` | cron (Saturday) + manual | Checks for new tildr release, builds + publishes if new |
-| `publish-repo.yml` | release published + manual | Triggers `orbitbits/packaging` to import release RPMs |
+| `build-rpm.yml` | push/PR to main | Builds a distro-neutral x86_64 RPM, runs lint, and sends main push artifacts to `orbitbits/packaging` |
+| `release-from-tildr.yml` | cron (Saturday) + manual | Checks for new tildr release and sends temporary build artifacts to `orbitbits/packaging` |
+| `publish-repo.yml` | release published + manual | Triggers `orbitbits/packaging` to import legacy release RPMs |
 
 ## GitHub Secrets
 
@@ -166,6 +166,8 @@ make push-lease    # push --force-with-lease to all remotes
 * Always test with `make install` before publishing.
 * This repository does not publish GitHub Pages. Package indexes are generated
   by `orbitbits/packaging`.
+* New RPMs are kept only as short-lived GitHub Actions artifacts here; the
+  permanent package repository lives in `orbitbits/packaging`.
 
 ## Supported RPM distributions
 
