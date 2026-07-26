@@ -76,14 +76,15 @@ jobs:
 
       - name: Collect RPMs
         run: |
-          mkdir -p rpms
-          cp rpmbuild/RPMS/x86_64/*.rpm rpms/
+          mkdir -p rpm/x86_64
+          cp rpmbuild/RPMS/x86_64/*.rpm rpm/x86_64/
+          find rpm/x86_64 -name '*.rpm' -type f -exec ls -lh {} \;
 
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
           name: rpm
-          path: rpms/*.rpm
+          path: rpm/x86_64/*.rpm
           retention-days: 5
 
   release:
@@ -97,14 +98,14 @@ jobs:
       - name: Download all RPM artifacts
         uses: actions/download-artifact@v4
         with:
-          path: rpms/
+          path: rpm/x86_64/
           pattern: rpm
           merge-multiple: true
 
       - name: List RPMs
         run: |
           echo "Downloaded RPMs:"
-          find rpms/ -name "*.rpm" -exec ls -lh {} \;
+          find rpm/x86_64/ -name "*.rpm" -exec ls -lh {} \;
 
       - name: Create GitHub Release
         env:
@@ -114,7 +115,7 @@ jobs:
           gh release create "$TAG" \
             --title "Release ${TAG}" \
             --generate-notes \
-            rpms/*.rpm
+            rpm/x86_64/*.rpm
 
   publish:
     needs: [check, release]

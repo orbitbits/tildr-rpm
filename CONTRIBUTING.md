@@ -38,7 +38,7 @@ make build
 ```
 
 This downloads the binary and man pages from the latest tildr release on
-GitHub, then builds the RPM. The output is in `rpmbuild/RPMS/`.
+GitHub, then builds the RPM. CI collects release artifacts in `rpm/x86_64/`.
 
 ### 2. Install locally (test)
 
@@ -121,7 +121,7 @@ make build
 gh release create v0.1.0 \
   --title "Release v0.1.0" \
   --generate-notes \
-  rpmbuild/RPMS/x86_64/*.rpm
+  rpm/x86_64/*.rpm
 ```
 
 The `publish-repo.yml` workflow will pick up the new release automatically and trigger `orbitbits/packaging`.
