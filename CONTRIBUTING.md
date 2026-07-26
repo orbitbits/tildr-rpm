@@ -77,7 +77,7 @@ Releases are **fully automatic**. Every Saturday at 00:00 UTC a cron job
 checks [orbitbits/tildr](https://github.com/orbitbits/tildr) for new
 releases. When a new tag is detected, the workflow automatically:
 
-1. Builds RPMs for Fedora 42, 43, 44
+1. Builds a distro-neutral x86_64 RPM
 2. Creates a GitHub Release with the RPMs attached
 3. Pushes the `.rpm` artifacts to `orbitbits/packaging`
 
@@ -117,10 +117,7 @@ If the RPMs are already built locally:
 # 1. Build
 make build
 
-# 2. Rename with dist tag (e.g. for Fedora 42)
-mv rpmbuild/RPMS/x86_64/tildr-*.rpm rpmbuild/RPMS/x86_64/tildr-0.1.0-1.fc42.x86_64.rpm
-
-# 3. Create GitHub release and upload RPMs
+# 2. Create GitHub release and upload RPMs
 gh release create v0.1.0 \
   --title "Release v0.1.0" \
   --generate-notes \
@@ -145,7 +142,7 @@ refactor: restructure code
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `build-rpm.yml` | push/PR to main | Builds RPMs for Fedora 42/43/44, runs lint, and publishes main pushes to `orbitbits/packaging` |
+| `build-rpm.yml` | push/PR to main | Builds a distro-neutral x86_64 RPM, runs lint, and publishes main pushes to `orbitbits/packaging` |
 | `release-from-tildr.yml` | cron (Saturday) + manual | Checks for new tildr release, builds + publishes if new |
 | `publish-repo.yml` | release published + manual | Triggers `orbitbits/packaging` to import release RPMs |
 
@@ -170,9 +167,12 @@ make push-lease    # push --force-with-lease to all remotes
 * This repository does not publish GitHub Pages. Package indexes are generated
   by `orbitbits/packaging`.
 
-## Supported Fedora versions
+## Supported RPM distributions
 
-* Fedora 42, 43, 44
+* Fedora
+* CentOS Stream
+* Rocky Linux
+* AlmaLinux
 
 ---
 

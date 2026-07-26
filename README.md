@@ -7,7 +7,7 @@
 
 <h2 align="center">Declarative CLI for managing your Linux HOME directory.</h2>
 
-## Installation (Fedora / RPM)
+## Installation (RPM-based Linux)
 
 ### Via Repository (Recommended)
 
@@ -32,7 +32,7 @@ sudo dnf install ./tildr-*.rpm
 
 ## Supported distros
 
-* Fedora 42, 43, 44
+* Fedora
 * CentOS Stream
 * Rocky Linux
 * AlmaLinux

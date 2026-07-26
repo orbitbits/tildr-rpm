@@ -10,10 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: fedora:${{ matrix.fedora }}
-    strategy:
-      matrix:
-        fedora: ['42', '43', '44']
+    container: fedora:latest
 
     steps:
       - name: Checkout
@@ -32,18 +29,10 @@ jobs:
           dnf install -y rpmlint
           make lint
 
-      - name: Rename RPM with dist tag
-        run: |
-          rpm_dir="rpmbuild/RPMS/x86_64"
-          for rpm in "${rpm_dir}"/*.rpm; do
-            base="${rpm%.rpm}"
-            mv "$rpm" "${base}.fc${{ matrix.fedora }}.rpm"
-          done
-
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tildr-rpm-fedora-${{ matrix.fedora }}
+          name: tildr-rpm
           path: rpmbuild/RPMS/**/*.rpm
           if-no-files-found: error
           retention-days: 30
@@ -65,7 +54,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: rpms/
-          pattern: tildr-rpm-fedora-*
+          pattern: tildr-rpm
           merge-multiple: true
 
       - name: List downloaded RPMs

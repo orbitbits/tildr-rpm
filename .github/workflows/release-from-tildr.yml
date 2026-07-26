@@ -53,10 +53,7 @@ jobs:
     needs: check
     if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
-    container: fedora:${{ matrix.fedora }}
-    strategy:
-      matrix:
-        fedora: ['42', '43', '44']
+    container: fedora:latest
 
     steps:
       - name: Checkout
@@ -80,15 +77,12 @@ jobs:
       - name: Collect RPMs
         run: |
           mkdir -p rpms
-          for rpm in rpmbuild/RPMS/x86_64/*.rpm; do
-            base="${rpm%.rpm}"
-            mv "$rpm" "rpms/$(basename "${base}.fc${{ matrix.fedora }}.rpm")"
-          done
+          cp rpmbuild/RPMS/x86_64/*.rpm rpms/
 
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rpm-fedora-${{ matrix.fedora }}
+          name: rpm
           path: rpms/*.rpm
           retention-days: 5
 
@@ -104,7 +98,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: rpms/
-          pattern: rpm-fedora-*
+          pattern: rpm
           merge-multiple: true
 
       - name: List RPMs
