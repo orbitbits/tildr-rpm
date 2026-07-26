@@ -72,10 +72,24 @@ jobs:
         run: |
           find rpms -name '*.rpm' -type f -exec ls -lh {} \;
 
+      - name: Prepare release RPMs
+        run: |
+          mkdir -p release-rpms
+          while IFS= read -r -d '' rpm_file; do
+            cp "$rpm_file" "release-rpms/$(basename "$rpm_file")"
+          done < <(find rpms -name '*.rpm' -type f -print0)
+
+          if ! find release-rpms -name '*.rpm' -type f | grep -q .; then
+            echo "::error::No RPM artifact found"
+            exit 1
+          fi
+
+          find release-rpms -name '*.rpm' -type f -exec ls -lh {} \;
+
       - name: Determine package version
         id: package
         run: |
-          rpm_file="$(find rpms -name '*.rpm' -type f | head -1)"
+          rpm_file="$(find release-rpms -name '*.rpm' -type f | head -1)"
           if [ -z "$rpm_file" ]; then
             echo "::error::No RPM artifact found"
             exit 1
@@ -95,11 +109,11 @@ jobs:
           tag="${{ steps.package.outputs.tag }}"
 
           if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload "$tag" rpms/*.rpm \
+            gh release upload "$tag" release-rpms/*.rpm \
               --repo "${{ github.repository }}" \
               --clobber
           else
-            gh release create "$tag" rpms/*.rpm \
+            gh release create "$tag" release-rpms/*.rpm \
               --repo "${{ github.repository }}" \
               --target "${{ github.sha }}" \
               --title "Release ${tag}" \
